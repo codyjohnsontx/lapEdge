@@ -49,5 +49,14 @@
         "max_tire_life_laps": 60,
         "fuel_tank_capacity_l": 80.0,
         "compounds": ["hard"]
+    },
+    "voice": {
+        "enabled": true,
+        "volume": 0.9,
+        "rate": 175,
+        "min_repeat_interval_s": 20.0,
+        "speak_advisory": true,
+        "speak_info": false,
+        "voice_id": ""
     }
 }

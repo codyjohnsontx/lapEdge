@@ -58,6 +58,17 @@ class HotkeyConfig:
 
 
 @dataclass
+class VoiceConfig:
+    enabled: bool = True
+    volume: float = 0.9
+    rate: int = 175
+    min_repeat_interval_s: float = 20.0
+    speak_advisory: bool = True
+    speak_info: bool = False
+    voice_id: str = ""
+
+
+@dataclass
 class CarOverride:
     max_tire_life_laps: int = 60
     fuel_tank_capacity_l: float = 80.0
@@ -73,6 +84,7 @@ class AppConfig:
     hotkeys: HotkeyConfig = field(default_factory=HotkeyConfig)
     car_overrides: dict = field(default_factory=dict)
     defaults: CarOverride = field(default_factory=CarOverride)
+    voice: VoiceConfig = field(default_factory=VoiceConfig)
 
 
 def _dict_to_config(data: dict) -> AppConfig:
@@ -95,6 +107,8 @@ def _dict_to_config(data: dict) -> AppConfig:
         config.car_overrides = {
             k: CarOverride(**v) for k, v in data["car_overrides"].items()
         }
+    if "voice" in data:
+        config.voice = VoiceConfig(**data["voice"])
 
     return config
 

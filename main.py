@@ -12,16 +12,19 @@ from PyQt5.QtCore import QThread, QTimer, Qt, pyqtSignal, pyqtSlot, QObject
 from PyQt5.QtWidgets import QApplication
 
 from config import load_config, save_config, AppConfig
-from telemetry import TelemetryWorker, TelemetryFrame, SessionInfo
+from telemetry import TelemetryWorker, TelemetryFrame, SessionInfo, SessionFlags
 from data_processor import DataProcessor
 from strategy_engine import StrategyEngine
 from model import ModelWorker
 from overlay import OverlayWidget
 from logger import TelemetryLogger
+from voice import VoiceWorker, VoicePriority
 
 
 class LapEdgeApp(QObject):
     """Main application controller. Owns all modules and manages lifecycle."""
+
+    _speak = pyqtSignal(str, int)  # cross-thread speech requests
 
     def __init__(self, config: AppConfig):
         super().__init__()
@@ -55,6 +58,22 @@ class LapEdgeApp(QObject):
         self._model_timer.moveToThread(self._model_thread)
         self._model_timer.timeout.connect(self._model_worker.process_queue)
 
+        # Voice worker + thread
+        self._voice_thread = QThread()
+        self._voice_worker = VoiceWorker(config)
+        self._voice_worker.moveToThread(self._voice_thread)
+
+        # Voice queue processing timer (runs in voice thread)
+        self._voice_timer = QTimer()
+        self._voice_timer.setInterval(200)
+        self._voice_timer.moveToThread(self._voice_thread)
+        self._voice_timer.timeout.connect(self._voice_worker.process_queue)
+
+        # Voice state tracking
+        self._prev_on_pit_road: bool = False
+        self._prev_session_flags: int = 0
+        self._session_greeted: bool = False
+
         # Hotkey thread
         self._hotkey_listener = None
 
@@ -69,6 +88,12 @@ class LapEdgeApp(QObject):
         # Model thread lifecycle
         self._model_thread.started.connect(self._model_worker.start)
         self._model_thread.started.connect(self._model_timer.start)
+
+        # Voice thread lifecycle
+        self._voice_thread.started.connect(self._voice_worker.start)
+        self._voice_thread.started.connect(self._voice_timer.start)
+        self._speak.connect(self._voice_worker.request_speech)
+        self._telemetry_worker.connection_status.connect(self._on_connection_voice)
 
         # Telemetry → Logger
         self._telemetry_worker.frame_ready.connect(self._logger.log_frame)
@@ -96,6 +121,7 @@ class LapEdgeApp(QObject):
         # Start threads
         self._telemetry_thread.start()
         self._model_thread.start()
+        self._voice_thread.start()
 
         # Start hotkey listener
         self._start_hotkeys()
@@ -142,6 +168,10 @@ class LapEdgeApp(QObject):
     @pyqtSlot(object)
     def _on_frame(self, frame: TelemetryFrame):
         """Handle each telemetry frame. Throttle UI updates to 4hz."""
+        # State-change checks run on every frame (not throttled)
+        self._check_pit_road(frame)
+        self._check_flags(frame)
+
         now = time.time()
         if now - self._last_ui_update < self._ui_interval:
             return
@@ -184,6 +214,7 @@ class LapEdgeApp(QObject):
                 context.current_lap, rec
             ):
                 self._overlay.update_recommendation(rec)
+            self._speak_recommendation(rec, context)
 
     @pyqtSlot(object)
     def _on_session_info(self, info: SessionInfo):
@@ -193,6 +224,14 @@ class LapEdgeApp(QObject):
 
         # Load car-specific model
         self._model_worker.load_for_car(info.car_name)
+
+        # Session greeting (once per connection)
+        if not self._session_greeted and info.track_name:
+            self._session_greeted = True
+            self._speak.emit(
+                f"LapEdge active. Racing at {info.track_name}.",
+                int(VoicePriority.STATUS),
+            )
 
         print(f"[main] Session: {info.car_name} @ {info.track_name} "
               f"({info.session_type})")
@@ -213,6 +252,52 @@ class LapEdgeApp(QObject):
                 prediction,
             )
             self._overlay.update_recommendation(rec)
+            self._speak_recommendation(rec, None)
+
+    @pyqtSlot(bool)
+    def _on_connection_voice(self, connected: bool):
+        """Speak connection status changes."""
+        if connected:
+            self._session_greeted = False  # allow greeting on next session info
+            self._speak.emit("Connected to iRacing.", int(VoicePriority.STATUS))
+        else:
+            self._speak.emit("iRacing disconnected.", int(VoicePriority.STATUS))
+
+    def _check_pit_road(self, frame: TelemetryFrame):
+        """Speak when the car enters or exits pit road."""
+        if frame.on_pit_road == self._prev_on_pit_road:
+            return
+        self._prev_on_pit_road = frame.on_pit_road
+        msg = "Entering pit road." if frame.on_pit_road else "Exiting pit road."
+        self._speak.emit(msg, int(VoicePriority.ADVISORY))
+
+    def _check_flags(self, frame: TelemetryFrame):
+        """Speak flag changes."""
+        new, old = frame.session_flags, self._prev_session_flags
+        if new == old:
+            return
+        self._prev_session_flags = new
+        newly_set = new & ~old
+        if newly_set & SessionFlags.GREEN:
+            self._speak.emit("Green flag.", int(VoicePriority.ADVISORY))
+        elif newly_set & (SessionFlags.YELLOW | SessionFlags.CAUTION):
+            self._speak.emit("Yellow flag. Caution.", int(VoicePriority.CRITICAL))
+        elif newly_set & SessionFlags.RED:
+            self._speak.emit("Red flag. Session stopped.", int(VoicePriority.CRITICAL))
+        elif newly_set & SessionFlags.CHECKERED:
+            self._speak.emit("Checkered flag. Session complete.", int(VoicePriority.ADVISORY))
+
+    def _speak_recommendation(self, rec, context):
+        """Speak a strategy recommendation based on urgency and voice config."""
+        from strategy_engine import Urgency
+        if not self._config.voice.enabled:
+            return
+        if rec.urgency == Urgency.CRITICAL:
+            self._speak.emit(rec.message, int(VoicePriority.CRITICAL))
+        elif rec.urgency == Urgency.ADVISORY and self._config.voice.speak_advisory:
+            self._speak.emit(rec.message, int(VoicePriority.ADVISORY))
+        elif rec.urgency == Urgency.INFO and self._config.voice.speak_info:
+            self._speak.emit(rec.message, int(VoicePriority.INFO))
 
     def shutdown(self):
         """Graceful shutdown: stop workers, wait for threads, save config."""
@@ -226,6 +311,8 @@ class LapEdgeApp(QObject):
         self._telemetry_worker.stop()
         self._model_worker.stop()
         self._model_timer.stop()
+        self._voice_worker.stop()
+        self._voice_timer.stop()
         self._logger.stop()
 
         # Stop hotkey listener
@@ -237,6 +324,8 @@ class LapEdgeApp(QObject):
         self._telemetry_thread.wait(3000)
         self._model_thread.quit()
         self._model_thread.wait(3000)
+        self._voice_thread.quit()
+        self._voice_thread.wait(3000)
 
         print("[main] LapEdge stopped.")
 
