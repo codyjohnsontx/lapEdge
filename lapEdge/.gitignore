@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# TensorFlow models (large binaries)
+models/*.h5
+models/*.keras
+models/*.tflite
+models/*.pb
+models/saved_model/
+
+# Logs
+logs/*.csv
+
+# User config
+.lapedge/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Jupyter
+.ipynb_checkpoints/

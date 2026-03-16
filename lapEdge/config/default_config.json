@@ -1,0 +1,53 @@
+{
+    "overlay": {
+        "x": 100,
+        "y": 100,
+        "width": 420,
+        "height": 320,
+        "opacity": 0.85,
+        "font_size": 14,
+        "alert_mode": "periodic",
+        "periodic_interval_laps": 5
+    },
+    "telemetry": {
+        "capture_rate_hz": 60,
+        "ui_update_rate_hz": 4,
+        "session_info_interval_s": 5
+    },
+    "logging": {
+        "enabled": true,
+        "flush_interval_s": 5,
+        "log_dir": "logs"
+    },
+    "model": {
+        "enabled": true,
+        "model_dir": "models"
+    },
+    "hotkeys": {
+        "toggle_overlay": "<ctrl>+<shift>+l",
+        "cycle_mode": "<ctrl>+<shift>+m",
+        "request_update": "<ctrl>+<shift>+r"
+    },
+    "car_overrides": {
+        "mx5 cup": {
+            "max_tire_life_laps": 80,
+            "fuel_tank_capacity_l": 45.0,
+            "compounds": ["hard"]
+        },
+        "ferrari 488 gt3 evo": {
+            "max_tire_life_laps": 40,
+            "fuel_tank_capacity_l": 110.0,
+            "compounds": ["soft", "medium", "hard"]
+        },
+        "dallara p217": {
+            "max_tire_life_laps": 50,
+            "fuel_tank_capacity_l": 75.0,
+            "compounds": ["soft", "medium"]
+        }
+    },
+    "defaults": {
+        "max_tire_life_laps": 60,
+        "fuel_tank_capacity_l": 80.0,
+        "compounds": ["hard"]
+    }
+}
