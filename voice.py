@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from enum import IntEnum
 from queue import PriorityQueue, Empty
 
-from PyQt5.QtCore import QObject, QTimer, pyqtSignal, pyqtSlot
+from PyQt5.QtCore import QObject, pyqtSignal, pyqtSlot
 
 try:
     import pyttsx3
@@ -73,14 +73,15 @@ class VoiceWorker(QObject):
         self._running = False
         self.stop_playback()
 
+    @pyqtSlot()
     def stop_playback(self):
-        """Interrupt any ongoing utterance. Safe to call from any thread."""
+        """Interrupt any ongoing utterance. Runs on the voice thread via queued connection."""
         self._interrupt.set()
         if self._engine is not None:
             try:
                 self._engine.stop()
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"[voice] error stopping engine: {type(e).__name__}: {e}")
 
     @pyqtSlot(str, int)
     def request_speech(self, text: str, priority: int):

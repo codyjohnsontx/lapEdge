@@ -14,7 +14,7 @@ from PyQt5.QtWidgets import QApplication
 from config import load_config, save_config, AppConfig
 from telemetry import TelemetryWorker, TelemetryFrame, SessionInfo, SessionFlags
 from data_processor import DataProcessor
-from strategy_engine import StrategyEngine
+from strategy_engine import StrategyEngine, Urgency
 from model import ModelWorker
 from overlay import OverlayWidget
 from logger import TelemetryLogger
@@ -95,7 +95,7 @@ class LapEdgeApp(QObject):
         self._voice_thread.started.connect(self._voice_worker.start)
         self._voice_thread.started.connect(self._voice_timer.start)
         self._speak.connect(self._voice_worker.request_speech)
-        self._interrupt_speech.connect(self._voice_worker.stop_playback, Qt.DirectConnection)
+        self._interrupt_speech.connect(self._voice_worker.stop_playback, Qt.QueuedConnection)
         self._telemetry_worker.connection_status.connect(self._on_connection_voice)
 
         # Telemetry → Logger
@@ -306,7 +306,6 @@ class LapEdgeApp(QObject):
 
     def _speak_recommendation(self, rec):
         """Speak a strategy recommendation based on urgency and voice config."""
-        from strategy_engine import Urgency
         if not self._config.voice.enabled:
             return
         if rec.urgency == Urgency.CRITICAL:
