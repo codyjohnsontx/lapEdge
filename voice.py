@@ -141,6 +141,9 @@ class VoiceWorker(QObject):
             self.speech_started.emit(text)
             self._engine.say(text)
             self._engine.runAndWait()
+        except RuntimeError as e:
+            print(f"[voice] speech error: RuntimeError: {e}")
+            self.voice_error.emit(f"RuntimeError: {e}")
         except Exception as e:
-            print(f"[voice] speech error: {e}")
-            self.voice_error.emit(str(e))
+            print(f"[voice] speech error: {type(e).__name__}: {e}")
+            self.voice_error.emit(f"{type(e).__name__}: {e}")

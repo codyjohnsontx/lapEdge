@@ -214,7 +214,7 @@ class LapEdgeApp(QObject):
                 context.current_lap, rec
             ):
                 self._overlay.update_recommendation(rec)
-            self._speak_recommendation(rec, context)
+            self._speak_recommendation(rec)
 
     @pyqtSlot(object)
     def _on_session_info(self, info: SessionInfo):
@@ -252,7 +252,7 @@ class LapEdgeApp(QObject):
                 prediction,
             )
             self._overlay.update_recommendation(rec)
-            self._speak_recommendation(rec, None)
+            self._speak_recommendation(rec)
 
     @pyqtSlot(bool)
     def _on_connection_voice(self, connected: bool):
@@ -260,9 +260,11 @@ class LapEdgeApp(QObject):
         if connected:
             self._session_greeted = False  # allow greeting on next session info
             self._prev_session_flags = 0
+            self._prev_on_pit_road = False
             self._speak.emit("Connected to iRacing.", int(VoicePriority.STATUS))
         else:
             self._prev_session_flags = 0
+            self._prev_on_pit_road = False
             self._speak.emit("iRacing disconnected.", int(VoicePriority.STATUS))
 
     def _check_pit_road(self, frame: TelemetryFrame):
@@ -289,7 +291,7 @@ class LapEdgeApp(QObject):
         elif newly_set & SessionFlags.CHECKERED:
             self._speak.emit("Checkered flag. Session complete.", int(VoicePriority.ADVISORY))
 
-    def _speak_recommendation(self, rec, context):
+    def _speak_recommendation(self, rec):
         """Speak a strategy recommendation based on urgency and voice config."""
         from strategy_engine import Urgency
         if not self._config.voice.enabled:
