@@ -128,7 +128,7 @@ The model input is a 24-feature vector of per-lap aggregated telemetry. See `dat
 
 ## Project Structure
 
-```
+```text
 lapEdge/
 ├── main.py              # App controller, thread wiring, signal routing
 ├── telemetry.py         # iRacing telemetry capture (60hz), SessionFlags
@@ -150,7 +150,7 @@ lapEdge/
 
 Each expensive subsystem runs in its own `QThread`. Communication is strictly via Qt signals (queued connections for cross-thread calls — no shared mutable state, no locks).
 
-```
+```text
 iRacing shared memory
         │
   TelemetryWorker (60hz)

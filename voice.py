@@ -47,9 +47,11 @@ class VoiceWorker(QObject):
         """Initialise pyttsx3. Must be called from within the voice thread."""
         if pyttsx3 is None:
             print("[voice] pyttsx3 not available — voice disabled")
+            self._running = False
             return
         if not self._config.enabled:
             print("[voice] voice disabled in config")
+            self._running = False
             return
         try:
             self._engine = pyttsx3.init()
@@ -61,6 +63,7 @@ class VoiceWorker(QObject):
             print("[voice] VoiceWorker started")
         except Exception as e:
             print(f"[voice] pyttsx3 init failed: {e}")
+            self._running = False
             self.voice_error.emit(str(e))
 
     def stop(self):
@@ -70,6 +73,8 @@ class VoiceWorker(QObject):
     @pyqtSlot(str, int)
     def request_speech(self, text: str, priority: int):
         """Enqueue a speech request. Called from main thread via queued connection."""
+        if not self._running:
+            return
         if not self._config.enabled:
             return
         p = VoicePriority(priority)
@@ -101,6 +106,7 @@ class VoiceWorker(QObject):
                 break
 
         best = None
+        valid_candidates = []
         for req in candidates:
             # Discard stale non-CRITICAL items (queued > 10s ago)
             if req.priority != VoicePriority.CRITICAL:
@@ -113,9 +119,16 @@ class VoiceWorker(QObject):
                 if now - last_spoken < self._config.min_repeat_interval_s:
                     continue
 
+            valid_candidates.append(req)
+
             # Pick highest priority (lowest int value)
             if best is None or req.priority < best.priority:
                 best = req
+
+        # Re-enqueue valid candidates that were not selected
+        for req in valid_candidates:
+            if req is not best:
+                self._queue.put_nowait(req)
 
         if best is not None:
             if best.dedupe_key:

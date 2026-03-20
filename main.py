@@ -259,8 +259,10 @@ class LapEdgeApp(QObject):
         """Speak connection status changes."""
         if connected:
             self._session_greeted = False  # allow greeting on next session info
+            self._prev_session_flags = 0
             self._speak.emit("Connected to iRacing.", int(VoicePriority.STATUS))
         else:
+            self._prev_session_flags = 0
             self._speak.emit("iRacing disconnected.", int(VoicePriority.STATUS))
 
     def _check_pit_road(self, frame: TelemetryFrame):
@@ -278,12 +280,12 @@ class LapEdgeApp(QObject):
             return
         self._prev_session_flags = new
         newly_set = new & ~old
-        if newly_set & SessionFlags.GREEN:
-            self._speak.emit("Green flag.", int(VoicePriority.ADVISORY))
+        if newly_set & SessionFlags.RED:
+            self._speak.emit("Red flag. Session stopped.", int(VoicePriority.CRITICAL))
         elif newly_set & (SessionFlags.YELLOW | SessionFlags.CAUTION):
             self._speak.emit("Yellow flag. Caution.", int(VoicePriority.CRITICAL))
-        elif newly_set & SessionFlags.RED:
-            self._speak.emit("Red flag. Session stopped.", int(VoicePriority.CRITICAL))
+        elif newly_set & SessionFlags.GREEN:
+            self._speak.emit("Green flag.", int(VoicePriority.ADVISORY))
         elif newly_set & SessionFlags.CHECKERED:
             self._speak.emit("Checkered flag. Session complete.", int(VoicePriority.ADVISORY))
 
