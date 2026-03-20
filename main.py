@@ -8,7 +8,7 @@ import signal
 import sys
 import time
 
-from PyQt5.QtCore import QThread, QTimer, Qt, pyqtSignal, pyqtSlot, QObject
+from PyQt5.QtCore import QMetaObject, QThread, QTimer, Qt, pyqtSignal, pyqtSlot, QObject
 from PyQt5.QtWidgets import QApplication
 
 from config import load_config, save_config, AppConfig
@@ -70,8 +70,8 @@ class LapEdgeApp(QObject):
         self._voice_timer.timeout.connect(self._voice_worker.process_queue)
 
         # Voice state tracking
-        self._prev_on_pit_road: bool = False
-        self._prev_session_flags: int = 0
+        self._prev_on_pit_road = None
+        self._prev_session_flags = None
         self._session_greeted: bool = False
 
         # Hotkey thread
@@ -259,16 +259,19 @@ class LapEdgeApp(QObject):
         """Speak connection status changes."""
         if connected:
             self._session_greeted = False  # allow greeting on next session info
-            self._prev_session_flags = 0
-            self._prev_on_pit_road = False
+            self._prev_session_flags = None
+            self._prev_on_pit_road = None
             self._speak.emit("Connected to iRacing.", int(VoicePriority.STATUS))
         else:
-            self._prev_session_flags = 0
-            self._prev_on_pit_road = False
+            self._prev_session_flags = None
+            self._prev_on_pit_road = None
             self._speak.emit("iRacing disconnected.", int(VoicePriority.STATUS))
 
     def _check_pit_road(self, frame: TelemetryFrame):
         """Speak when the car enters or exits pit road."""
+        if self._prev_on_pit_road is None:
+            self._prev_on_pit_road = frame.on_pit_road
+            return
         if frame.on_pit_road == self._prev_on_pit_road:
             return
         self._prev_on_pit_road = frame.on_pit_road
@@ -278,6 +281,9 @@ class LapEdgeApp(QObject):
     def _check_flags(self, frame: TelemetryFrame):
         """Speak flag changes."""
         new, old = frame.session_flags, self._prev_session_flags
+        if old is None:
+            self._prev_session_flags = new
+            return
         if new == old:
             return
         self._prev_session_flags = new
@@ -314,9 +320,9 @@ class LapEdgeApp(QObject):
         # Stop workers
         self._telemetry_worker.stop()
         self._model_worker.stop()
-        self._model_timer.stop()
+        QMetaObject.invokeMethod(self._model_timer, "stop", Qt.QueuedConnection)
         self._voice_worker.stop()
-        self._voice_timer.stop()
+        QMetaObject.invokeMethod(self._voice_timer, "stop", Qt.QueuedConnection)
         self._logger.stop()
 
         # Stop hotkey listener

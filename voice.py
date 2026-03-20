@@ -69,6 +69,11 @@ class VoiceWorker(QObject):
     def stop(self):
         """Signal the worker to stop."""
         self._running = False
+        if self._engine is not None:
+            try:
+                self._engine.stop()
+            except Exception:
+                pass
 
     @pyqtSlot(str, int)
     def request_speech(self, text: str, priority: int):
