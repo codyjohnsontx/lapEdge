@@ -1,5 +1,6 @@
 """Voice spotter for LapEdge — spoken callouts via pyttsx3."""
 
+import threading
 import time
 from dataclasses import dataclass, field
 from enum import IntEnum
@@ -41,6 +42,7 @@ class VoiceWorker(QObject):
         self._engine = None
         self._running = False
         self._recent: dict = {}  # dedupe_key -> last spoken timestamp
+        self._interrupt = threading.Event()
 
     @pyqtSlot()
     def start(self):
@@ -69,6 +71,11 @@ class VoiceWorker(QObject):
     def stop(self):
         """Signal the worker to stop."""
         self._running = False
+        self.stop_playback()
+
+    def stop_playback(self):
+        """Interrupt any ongoing utterance. Safe to call from any thread."""
+        self._interrupt.set()
         if self._engine is not None:
             try:
                 self._engine.stop()
@@ -136,19 +143,28 @@ class VoiceWorker(QObject):
                 self._queue.put_nowait(req)
 
         if best is not None:
-            if best.dedupe_key:
+            if best.priority == VoicePriority.CRITICAL:
+                self.stop_playback()
+            spoken = self._speak_blocking(best.text)
+            if best.dedupe_key and spoken:
                 self._recent[best.dedupe_key] = now
-            self._speak_blocking(best.text)
 
-    def _speak_blocking(self, text: str):
-        """Blocking TTS call — intentionally blocks the voice thread only."""
+    def _speak_blocking(self, text: str) -> bool:
+        """Blocking TTS call — intentionally blocks the voice thread only.
+
+        Returns True if speech completed without error, False otherwise.
+        """
+        self._interrupt.clear()
         try:
             self.speech_started.emit(text)
             self._engine.say(text)
             self._engine.runAndWait()
+            return True
         except RuntimeError as e:
             print(f"[voice] speech error: RuntimeError: {e}")
             self.voice_error.emit(f"RuntimeError: {e}")
+            return False
         except Exception as e:
             print(f"[voice] speech error: {type(e).__name__}: {e}")
             self.voice_error.emit(f"{type(e).__name__}: {e}")
+            return False

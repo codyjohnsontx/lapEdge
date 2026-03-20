@@ -24,7 +24,8 @@ from voice import VoiceWorker, VoicePriority
 class LapEdgeApp(QObject):
     """Main application controller. Owns all modules and manages lifecycle."""
 
-    _speak = pyqtSignal(str, int)  # cross-thread speech requests
+    _speak = pyqtSignal(str, int)           # cross-thread speech requests
+    _interrupt_speech = pyqtSignal()        # interrupt ongoing utterance (DirectConnection)
 
     def __init__(self, config: AppConfig):
         super().__init__()
@@ -70,6 +71,7 @@ class LapEdgeApp(QObject):
         self._voice_timer.timeout.connect(self._voice_worker.process_queue)
 
         # Voice state tracking
+        self._prev_connected = None
         self._prev_on_pit_road = None
         self._prev_session_flags = None
         self._session_greeted: bool = False
@@ -93,6 +95,7 @@ class LapEdgeApp(QObject):
         self._voice_thread.started.connect(self._voice_worker.start)
         self._voice_thread.started.connect(self._voice_timer.start)
         self._speak.connect(self._voice_worker.request_speech)
+        self._interrupt_speech.connect(self._voice_worker.stop_playback, Qt.DirectConnection)
         self._telemetry_worker.connection_status.connect(self._on_connection_voice)
 
         # Telemetry → Logger
@@ -265,7 +268,9 @@ class LapEdgeApp(QObject):
         else:
             self._prev_session_flags = None
             self._prev_on_pit_road = None
-            self._speak.emit("iRacing disconnected.", int(VoicePriority.STATUS))
+            if self._prev_connected is True:
+                self._speak.emit("iRacing disconnected.", int(VoicePriority.STATUS))
+        self._prev_connected = connected
 
     def _check_pit_road(self, frame: TelemetryFrame):
         """Speak when the car enters or exits pit road."""
@@ -289,8 +294,10 @@ class LapEdgeApp(QObject):
         self._prev_session_flags = new
         newly_set = new & ~old
         if newly_set & SessionFlags.RED:
+            self._interrupt_speech.emit()
             self._speak.emit("Red flag. Session stopped.", int(VoicePriority.CRITICAL))
         elif newly_set & (SessionFlags.YELLOW | SessionFlags.CAUTION):
+            self._interrupt_speech.emit()
             self._speak.emit("Yellow flag. Caution.", int(VoicePriority.CRITICAL))
         elif newly_set & SessionFlags.GREEN:
             self._speak.emit("Green flag.", int(VoicePriority.ADVISORY))
@@ -303,6 +310,7 @@ class LapEdgeApp(QObject):
         if not self._config.voice.enabled:
             return
         if rec.urgency == Urgency.CRITICAL:
+            self._interrupt_speech.emit()
             self._speak.emit(rec.message, int(VoicePriority.CRITICAL))
         elif rec.urgency == Urgency.ADVISORY and self._config.voice.speak_advisory:
             self._speak.emit(rec.message, int(VoicePriority.ADVISORY))
