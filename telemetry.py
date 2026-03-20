@@ -12,6 +12,35 @@ except ImportError:
     irsdk = None
 
 
+class SessionFlags:
+    """iRacing SDK SessionFlags bitmask constants."""
+    CHECKERED      = 0x0001
+    WHITE          = 0x0002
+    GREEN          = 0x0004
+    YELLOW         = 0x0008
+    RED            = 0x0010
+    BLUE           = 0x0020
+    DEBRIS         = 0x0040
+    CROSSED        = 0x0080
+    YELLOW_WAVING  = 0x0100
+    ONE_LAP_TO_GO  = 0x0200
+    GREEN_HELD     = 0x0400
+    TEN_TO_GO      = 0x0800
+    FIVE_TO_GO     = 0x1000
+    RANDOM_WAVING  = 0x2000
+    CAUTION        = 0x4000
+    CAUTION_WAVING = 0x8000
+    BLACK          = 0x10000
+    DISQUALIFY     = 0x20000
+    SERVICEABLE    = 0x40000
+    FURLED         = 0x80000
+    REPAIR         = 0x100000
+    START_HIDDEN   = 0x10000000
+    START_READY    = 0x20000000
+    START_SET      = 0x40000000
+    START_GO       = 0x80000000
+
+
 @dataclass
 class TelemetryFrame:
     """Flat struct of all captured telemetry variables per tick."""
@@ -63,6 +92,7 @@ class TelemetryFrame:
     session_time: float = 0.0
     session_time_remain: float = 0.0
     session_laps_remain: int = 0
+    session_flags: int = 0
 
 
 @dataclass
@@ -211,6 +241,7 @@ class TelemetryWorker(QObject):
             session_time=ir["SessionTime"] or 0.0,
             session_time_remain=ir["SessionTimeRemain"] or 0.0,
             session_laps_remain=ir["SessionLapsRemainEx"] or 0,
+            session_flags=ir["SessionFlags"] or 0,
         )
 
     def _parse_session_info(self):
