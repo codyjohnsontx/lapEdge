@@ -5,7 +5,7 @@ Real-time iRacing pit strategy advisor. Runs as a transparent always-on-top over
 ## Features
 
 - **Visual overlay** — translucent HUD showing live telemetry, fuel laps remaining, tire life, gap to car ahead/behind, and color-coded strategy recommendations (green / orange / red)
-- **Voice spotter** — spoken callouts for pit recommendations, flag changes, pit road entry/exit, and connection events (offline TTS via macOS NSSpeechSynthesizer, no internet required)
+- **Voice spotter** — spoken callouts for pit recommendations, flag changes, pit road entry/exit, and connection events (offline TTS via pyttsx3/SAPI5, no internet required)
 - **Rule-based strategy engine** — 8 priority-ordered rules covering fuel critical, tire degradation, undercut/overcut windows, and safe pit windows
 - **ML inference** — optional TensorFlow model per car that blends with rule-based output when confidence > 70%
 - **Telemetry logging** — per-session CSV logs for post-race analysis
@@ -13,7 +13,7 @@ Real-time iRacing pit strategy advisor. Runs as a transparent always-on-top over
 
 ## Requirements
 
-- macOS (voice uses NSSpeechSynthesizer; overlay and telemetry work cross-platform)
+- Windows 10/11 (required for iRacing; voice uses pyttsx3 with SAPI5)
 - Python 3.10+
 - iRacing running on the same machine
 
